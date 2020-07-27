@@ -14,9 +14,9 @@ class Shader
 {
 private:
 	std::string m_FilePath;
-	unsigned int m_ProgramID;
 
 public:
+	unsigned int m_ProgramID;
 	Shader(const std::string& filePath);
 	~Shader();
 
