@@ -13,6 +13,18 @@
 #include "Renderer.h"
 #include "Shader.h"
 
+void processInput(GLFWwindow* window);
+void mouse_callback(GLFWwindow* window, double xpos, double ypos);
+
+glm::vec3 cameraPos	  = glm::vec3(0.0f, 0.0f, 3.0f);
+glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
+glm::vec3 cameraUp    = glm::vec3(0.0f, 1.0f, 0.0f);
+
+float deltaTime = 0.0f;	// time between current frame and last frame
+float lastFrame = 0.0f;
+
+float lastX = 400.0f, lastY = 300.0f, yaw = 90.0f, pitch = 90.0f;
+
 int main()
 {
 	if (!glfwInit())
@@ -46,8 +58,14 @@ int main()
 		return -1;
 	}
 
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
 	std::cout << glGetString(GL_VERSION) << std::endl;
 	{
+		GLCall(glPolygonMode(GL_FRONT_AND_BACK, GL_FILL));
+
+		stbi_set_flip_vertically_on_load(true);
+
 		Shader shader("res/shader/Basic.shader");
 		shader.Bind();
 
@@ -98,6 +116,18 @@ int main()
 		   -0.5f,  0.5f, -0.5f,  0.0f, 1.0f
 		};
 
+		glm::vec3 cubePositions[] = {
+			glm::vec3( 0.0f,  0.0f,  0.0f),
+			glm::vec3( 2.0f,  5.0f, -15.0f),
+			glm::vec3(-1.5f, -2.2f, -2.5f),
+			glm::vec3(-3.8f, -2.0f, -12.3f),
+			glm::vec3( 2.4f, -0.4f, -3.5f),
+			glm::vec3(-1.7f,  3.0f, -7.5f),
+			glm::vec3( 1.3f, -2.0f, -2.5f),
+			glm::vec3( 1.5f,  2.0f, -2.5f),
+			glm::vec3( 1.5f,  0.2f, -1.5f),
+			glm::vec3(-1.3f,  1.0f, -1.5f)
+		};
 
 		unsigned int VBO, VAO;
 		GLCall(glGenVertexArrays(1, &VAO));
@@ -114,11 +144,8 @@ int main()
 		GLCall(glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float))));
 		GLCall(glEnableVertexAttribArray(1));
 
-		GLCall(glPolygonMode(GL_FRONT_AND_BACK, GL_FILL));
 
-		stbi_set_flip_vertically_on_load(true);
 		unsigned int texture1, texture2;
-
 		//texture 1
 		//////////////////////////////
 		glGenTextures(1, &texture1);
@@ -142,6 +169,7 @@ int main()
 			std::cout << "Failed to load texture" << std::endl;
 		}
 		stbi_image_free(data);
+
 
 		//texture 2
 		//////////////////////////////
@@ -169,24 +197,25 @@ int main()
 		shader.setInt("texture1", 0);
 		shader.setInt("texture2", 1);
 
+		glm::mat4 view;
+		view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+
+		glm::mat4 projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
+		shader.setMat4("projection", projection);
+
 		GLCall(glBindVertexArray(0));
 		GLCall(glBindBuffer(GL_ARRAY_BUFFER, 0));
 
-		glm::vec3 cubePositions[] = {
-			glm::vec3(0.0f, 0.0f, 0.0f),
-			glm::vec3(2.0f, 5.0f, -15.0f),
-			glm::vec3(-1.5f, -2.2f, -2.5f),
-			glm::vec3(-3.8f, -2.0f, -12.3f),
-			glm::vec3(2.4f, -0.4f, -3.5f),
-			glm::vec3(-1.7f, 3.0f, -7.5f),
-			glm::vec3(1.3f, -2.0f, -2.5f),
-			glm::vec3(1.5f, 2.0f, -2.5f),
-			glm::vec3(1.5f, 0.2f, -1.5f),
-			glm::vec3(-1.3f, 1.0f, -1.5f)
-		};
 
 		while (!glfwWindowShouldClose(window))
 		{
+			glfwSetCursorPosCallback(window, mouse_callback);
+			float currentFrame = glfwGetTime();
+			deltaTime = currentFrame - lastFrame;
+			lastFrame = currentFrame;
+			
+			processInput(window);
+
 			GLCall(glClearColor(0.2f, 0.3f, 0.3f, 1.0f));
 			GLCall(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
 
@@ -194,34 +223,80 @@ int main()
 			glBindTexture(GL_TEXTURE_2D, texture1);
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_2D, texture2);
-
 			
-			glm::mat4 view = glm::mat4(1.0f);
-			glm::mat4 projection = glm::mat4(1.0f);
-
-			//model = glm::rotate(model, (float)glfwGetTime() * glm::radians(50.0f), glm::vec3(0.5f, 1.0f, 0.0f));
-			view = glm::translate(view, glm::vec3(0.0f, 0.0f, -3.0f));
-			projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
-			shader.setMat4("view", view);
-			shader.setMat4("projection", projection);
-
 			shader.Bind();
+
+			glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+			shader.setMat4("view", view);
+
 			GLCall(glBindVertexArray(VAO));
 			for (unsigned int i = 0; i < 10; i++)
 			{
 				glm::mat4 model = glm::mat4(1.0f);
 				model = glm::translate(model, cubePositions[i]);
 				float angle = 20.0f * i;
-				model = glm::rotate(model, (float)glfwGetTime() * glm::radians(50.0f), glm::vec3(0.5f, 1.0f, 0.5f));
+				model = glm::rotate(model, (float)glfwGetTime() * glm::radians(angle), glm::vec3(1.0f, 0.3f, 0.5f));
 				shader.setMat4("model", model);
+
 				glDrawArrays(GL_TRIANGLES, 0, 36);
 			}
 
 			glfwSwapBuffers(window);
 			glfwPollEvents();
 		}
+
+		glDeleteVertexArrays(1, &VAO);
+		glDeleteBuffers(1, &VBO);
 	}
 
 	glfwTerminate();
 	return 0;
+}
+
+void processInput(GLFWwindow* window)
+{
+	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+		glfwSetWindowShouldClose(window, true);
+
+	float cameraSpeed = 2.5f * deltaTime;
+	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+		cameraPos += cameraSpeed * cameraFront;
+	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+		cameraPos -= cameraSpeed * cameraFront;
+	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+		cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+		cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+}
+
+void mouse_callback(GLFWwindow* window, double xpos, double ypos)
+{
+	if (firstMouse)
+	{
+		lastX = xpos;
+		lastY = ypos;
+	}
+	float xoffset = xpos - lastX;
+	float yoffset = lastY - ypos;
+	
+	lastX = xpos;
+	lastY = ypos;
+
+	const float sensitivity = 0.1f;
+	xoffset *= sensitivity;
+	yoffset *= sensitivity;
+
+	yaw += xoffset;
+	pitch += yoffset;
+
+	if (pitch > 89.0f)
+		pitch = 89.0f;
+	else if (pitch < -89.0f)
+		pitch = -89.0f;
+
+	glm::vec3 direction;
+	direction.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+	direction.y = sin(glm::radians(pitch));
+	direction.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+	cameraFront = glm::normalize(direction);
 }
