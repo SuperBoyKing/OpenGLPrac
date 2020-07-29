@@ -13,6 +13,7 @@
 #include "Renderer.h"
 #include "Shader.h"
 
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 void processInput(GLFWwindow* window);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 
@@ -22,8 +23,10 @@ glm::vec3 cameraUp    = glm::vec3(0.0f, 1.0f, 0.0f);
 
 float deltaTime = 0.0f;	// time between current frame and last frame
 float lastFrame = 0.0f;
+float firstMouse = true;
+float fov = 45.0f;
 
-float lastX = 400.0f, lastY = 300.0f, yaw = 90.0f, pitch = 90.0f;
+float lastX = 400.0f, lastY = 300.0f, yaw = -90.0f, pitch = 0.0f;
 
 int main()
 {
@@ -34,9 +37,10 @@ int main()
 	}
 
 	glfwWindowHint(GLFW_SAMPLES, 4);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
+
 
 	GLFWwindow* window;
 	window = glfwCreateWindow(800, 600, "01. Getting Start", NULL, NULL);
@@ -62,9 +66,6 @@ int main()
 
 	std::cout << glGetString(GL_VERSION) << std::endl;
 	{
-		GLCall(glPolygonMode(GL_FRONT_AND_BACK, GL_FILL));
-
-		stbi_set_flip_vertically_on_load(true);
 
 		Shader shader("res/shader/Basic.shader");
 		shader.Bind();
@@ -156,13 +157,15 @@ int main()
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
+		stbi_set_flip_vertically_on_load(true);
+
 		int width, height, nrChannels;
 		unsigned char* data = stbi_load("res/textures/container.jpg", &width, &height, &nrChannels, 0);
 
 		if (data)
 		{
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-			glGenerateMipmap(GL_TEXTURE_2D);
+			GLCall(glGenerateMipmap(GL_TEXTURE_2D));
 		}
 		else
 		{
@@ -173,7 +176,7 @@ int main()
 
 		//texture 2
 		//////////////////////////////
-		glGenBuffers(1, &texture2);
+		GLCall(glGenBuffers(1, &texture2));
 		glBindTexture(GL_TEXTURE_2D, texture2);
 
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -185,7 +188,7 @@ int main()
 		if (data)
 		{
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-			glGenerateMipmap(GL_TEXTURE_2D);
+			GLCall(glGenerateMipmap(GL_TEXTURE_2D));
 		}
 		else
 		{
@@ -200,16 +203,12 @@ int main()
 		glm::mat4 view;
 		view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 
-		glm::mat4 projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
-		shader.setMat4("projection", projection);
-
 		GLCall(glBindVertexArray(0));
 		GLCall(glBindBuffer(GL_ARRAY_BUFFER, 0));
 
 
 		while (!glfwWindowShouldClose(window))
 		{
-			glfwSetCursorPosCallback(window, mouse_callback);
 			float currentFrame = glfwGetTime();
 			deltaTime = currentFrame - lastFrame;
 			lastFrame = currentFrame;
@@ -219,12 +218,15 @@ int main()
 			GLCall(glClearColor(0.2f, 0.3f, 0.3f, 1.0f));
 			GLCall(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
 
-			glActiveTexture(GL_TEXTURE);
+			GLCall(glActiveTexture(GL_TEXTURE0));
 			glBindTexture(GL_TEXTURE_2D, texture1);
-			glActiveTexture(GL_TEXTURE1);
+			GLCall(glActiveTexture(GL_TEXTURE1));
 			glBindTexture(GL_TEXTURE_2D, texture2);
 			
 			shader.Bind();
+
+			glm::mat4 projection = glm::perspective(glm::radians(fov), 800.0f / 600.0f, 0.1f, 100.0f);
+			shader.setMat4("projection", projection);
 
 			glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 			shader.setMat4("view", view);
@@ -241,6 +243,8 @@ int main()
 				glDrawArrays(GL_TRIANGLES, 0, 36);
 			}
 
+			glfwSetCursorPosCallback(window, mouse_callback);
+			glfwSetScrollCallback(window, scroll_callback);
 			glfwSwapBuffers(window);
 			glfwPollEvents();
 		}
@@ -275,10 +279,11 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos)
 	{
 		lastX = xpos;
 		lastY = ypos;
+		firstMouse = false;
 	}
+
 	float xoffset = xpos - lastX;
 	float yoffset = lastY - ypos;
-	
 	lastX = xpos;
 	lastY = ypos;
 
@@ -299,4 +304,13 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos)
 	direction.y = sin(glm::radians(pitch));
 	direction.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
 	cameraFront = glm::normalize(direction);
+}
+
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
+{
+	fov -= (float)yoffset;
+	if (fov < 1.0f)
+		fov = 1.0f;
+	else if (fov > 45.0f)
+		fov = 45.0f;
 }

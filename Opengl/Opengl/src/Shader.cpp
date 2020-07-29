@@ -109,7 +109,7 @@ void Shader::setBool(const std::string& name, bool value) const
 
 void Shader::setInt(const std::string& name, int value) const
 {
-	glUniform1i(glGetUniformLocation(m_ProgramID, name.c_str()), value);
+	GLCall(glUniform1i(glGetUniformLocation(m_ProgramID, name.c_str()), value));
 }
 
 void Shader::setFloat(const std::string& name, float value) const
@@ -151,7 +151,7 @@ void Shader::setMat2(const std::string& name, const glm::mat2& mat) const
 {
 	glUniformMatrix2fv(glGetUniformLocation(m_ProgramID, name.c_str()), 1, GL_FALSE, &mat[0][0]);
 }
-// ------------------------------------------------------------------------
+
 void Shader::setMat3(const std::string& name, const glm::mat3& mat) const
 {
 	glUniformMatrix3fv(glGetUniformLocation(m_ProgramID, name.c_str()), 1, GL_FALSE, &mat[0][0]);
